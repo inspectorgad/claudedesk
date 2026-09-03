@@ -39,18 +39,40 @@ cd claudedesk
 `/Applications` (or `~/Applications` if that is not writable). Re-run it any
 time to rebuild.
 
+## Before you start: nothing is lost
+
+- **Do not sign out** of the Claude you already have open. Signing out is the
+  one thing that would force a re-login, and it is not needed.
+- Your **chat history lives on Anthropic's servers**, tied to your account.
+  Nothing on the Mac is the only copy, and the launchers never sign you out.
+- The default-profile launcher (SPST) runs the **same Claude Desktop you use
+  today**, from the same data directory. Login, settings and MCP
+  configuration stay untouched.
+- The second launcher creates a **new, empty folder** beside the existing one
+  and never reads or writes the default profile.
+- "Quit Other Claude" is the same as Cmd-Q. Claude Desktop saves as you go.
+- `Claude.app` itself is never modified, so updates keep working.
+
+The only destructive action in this project is `./uninstall.sh
+--purge-profiles`, which deletes the extra profile folder after asking you to
+confirm.
+
 ## First sign-in to the second profile
 
 Claude finishes sign-in through a `claude://` link that the browser hands back
 to macOS. With two Claude windows open, macOS may deliver that link to the
 wrong one. So:
 
-1. Open **Claude SPST**. It runs your existing profile, already signed in.
+1. Leave your current Claude Desktop open, or open **Claude SPST**. Either
+   way that window is the SPST instance, already signed in.
 2. Open **Claude Resurrection**. Because its profile does not exist yet and
    another Claude window is open, it offers to quit the other Claude first.
    Choose **Quit Other Claude**, then sign in with the Resurrection account.
+   (If you quit Claude yourself beforehand, the dialog is skipped.)
 3. Open **Claude SPST** again. Both windows now run at the same time, each
    signed in to its own organization, and they stay that way across restarts.
+4. Click each launcher once more while both run. Each brings its own window
+   forward; no third window opens.
 
 If you ever sign out of one profile and need to sign back in, quit the other
 Claude window first for the same reason.
