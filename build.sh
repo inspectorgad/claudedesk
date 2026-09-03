@@ -69,14 +69,16 @@ build_icon() {
   if [[ "$IS_MAC" -eq 1 ]] && command -v osascript >/dev/null 2>&1 && command -v iconutil >/dev/null 2>&1; then
     local iconset
     iconset="$(mktemp -d)/AppIcon.iconset"
-    if osascript -l JavaScript "$ROOT/src/make-icon.js" "$src" "$badge" "$color" "$iconset" >/dev/null 2>&1 \
-       && iconutil -c icns "$iconset" -o "$dest" 2>/dev/null; then
+    local err
+    if err="$(osascript -l JavaScript "$ROOT/src/make-icon.js" "$src" "$badge" "$color" "$iconset" 2>&1 \
+             && iconutil -c icns "$iconset" -o "$dest" 2>&1)"; then
       rm -rf "$(dirname "$iconset")"
       info "icon: badged ($badge, #$color)"
       return 0
     fi
     rm -rf "$(dirname "$iconset")"
     warn "badge rendering failed; falling back to the plain Claude icon"
+    warn "  $(printf '%s' "$err" | head -n 3 | tr '\n' ' ')"
   fi
   cp "$src" "$dest"
   info "icon: copied from Claude.app"

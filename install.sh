@@ -38,7 +38,7 @@ LSREG="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServic
 if [[ -x "$LSREG" ]]; then
   for name in "${installed[@]}"; do "$LSREG" -f "$DEST/$name" >/dev/null 2>&1 || true; done
 fi
-touch "$DEST"
+touch "$DEST" 2>/dev/null || true
 
 cat <<EOF
 

@@ -44,7 +44,7 @@ function renderSlot(src, px, badgeText, color) {
 
   // Base icon.
   src.drawInRectFromRectOperationFraction(
-    $.NSMakeRect(0, 0, px, px), $.NSZeroRect, $.NSCompositingOperationSourceOver, 1.0);
+    $.NSMakeRect(0, 0, px, px), $.NSMakeRect(0, 0, 0, 0), $.NSCompositingOperationSourceOver, 1.0);
 
   // Ribbon across the lower part of the icon.
   var margin = Math.round(px * 0.08);

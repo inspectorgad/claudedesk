@@ -22,6 +22,21 @@ jobs:
         run: |
           ./build.sh
           for p in build/*.app/Contents/Info.plist; do plutil -lint "$p"; done
-      - name: Icon script syntax (macOS)
+      - name: Render a badged icon from a system icon (macOS)
         if: runner.os == 'macOS'
-        run: osascript -l JavaScript -e 'ObjC.import("AppKit"); "ok"' && osascript -l JavaScript src/make-icon.js 2>&1 | grep -q usage
+        run: |
+          SRC=/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericApplicationIcon.icns
+          osascript -l JavaScript src/make-icon.js "$SRC" TEST 1F3A5F "$RUNNER_TEMP/AppIcon.iconset"
+          ls -l "$RUNNER_TEMP/AppIcon.iconset"
+          sips -g pixelWidth -g pixelHeight "$RUNNER_TEMP/AppIcon.iconset/icon_512x512@2x.png"
+          iconutil -c icns "$RUNNER_TEMP/AppIcon.iconset" -o "$RUNNER_TEMP/AppIcon.icns"
+          ls -l "$RUNNER_TEMP/AppIcon.icns"
+      - name: Full build with a fake Claude.app (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p "$RUNNER_TEMP/Claude.app/Contents/MacOS" "$RUNNER_TEMP/Claude.app/Contents/Resources"
+          cp /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericApplicationIcon.icns "$RUNNER_TEMP/Claude.app/Contents/Resources/electron.icns"
+          /usr/libexec/PlistBuddy -c 'Add :CFBundleIconFile string electron.icns' "$RUNNER_TEMP/Claude.app/Contents/Info.plist"
+          CLAUDEDESK_CLAUDE_APP="$RUNNER_TEMP/Claude.app" ./build.sh 2>&1 | tee build.log
+          ! grep -q 'badge rendering failed' build.log
+          codesign -dv "build/Claude SPST.app"
