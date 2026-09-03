@@ -8,6 +8,85 @@
 
 ObjC.import('AppKit');
 ObjC.import('Foundation');
+ObjC.import('CoreText');
+ObjC.import('CoreGraphics');
+
+// JXA does not expose every AppKit convenience on every class (for example
+// NSAttributedString's initWithString:attributes: is missing on the alloc
+// placeholder), so text is measured and drawn through a chain of approaches.
+// The first one that works is used; errors are collected for diagnostics.
+var TEXT_ERRORS = [];
+var TEXT_METHOD = 'none';
+
+function makeAttributedString(text, font, color) {
+  var str = $.NSMutableAttributedString.alloc.initWithString($(text));
+  var range = $.NSMakeRange(0, str.length);
+  str.addAttributeValueRange($.NSFontAttributeName, font, range);
+  str.addAttributeValueRange($.NSForegroundColorAttributeName, color, range);
+  return str;
+}
+
+function makeAttrsDict(font, color) {
+  var attrs = $.NSMutableDictionary.alloc.init;
+  attrs.setObjectForKey(font, $.NSFontAttributeName);
+  attrs.setObjectForKey(color, $.NSForegroundColorAttributeName);
+  return attrs;
+}
+
+// Returns {width, height} or throws.
+function measureText(text, font, color) {
+  var errs = [];
+  try {
+    var s = makeAttributedString(text, font, color);
+    var sz = s.size;
+    if (sz && typeof sz.width === 'number') return { width: sz.width, height: sz.height };
+    errs.push('NSAttributedString.size unavailable');
+  } catch (e) { errs.push('attributed.size: ' + e); }
+  try {
+    var sz2 = $(text).sizeWithAttributes(makeAttrsDict(font, color));
+    if (sz2 && typeof sz2.width === 'number') return { width: sz2.width, height: sz2.height };
+    errs.push('NSString.sizeWithAttributes unavailable');
+  } catch (e) { errs.push('sizeWithAttributes: ' + e); }
+  try {
+    var line = $.CTLineCreateWithAttributedString(makeAttributedString(text, font, color));
+    var ascent = Ref(), descent = Ref(), leading = Ref();
+    var w = $.CTLineGetTypographicBounds(line, ascent, descent, leading);
+    return { width: w, height: ascent[0] + descent[0], ctAscent: ascent[0], ctDescent: descent[0] };
+  } catch (e) { errs.push('CoreText measure: ' + e); }
+  TEXT_ERRORS = TEXT_ERRORS.concat(errs);
+  throw new Error('cannot measure text: ' + errs.join(' | '));
+}
+
+// Draws text with its bottom-left at (x, y) in the current context, or throws.
+function drawText(text, font, color, x, y, ctx, metrics) {
+  var errs = [];
+  try {
+    var s = makeAttributedString(text, font, color);
+    if (typeof s.drawAtPoint === 'function') { s.drawAtPoint($.NSMakePoint(x, y)); return 'attributed.drawAtPoint'; }
+    errs.push('NSAttributedString.drawAtPoint unavailable');
+  } catch (e) { errs.push('attributed.drawAtPoint: ' + e); }
+  try {
+    var ns = $(text);
+    if (typeof ns.drawAtPointWithAttributes === 'function') {
+      ns.drawAtPointWithAttributes($.NSMakePoint(x, y), makeAttrsDict(font, color));
+      return 'NSString.drawAtPointWithAttributes';
+    }
+    errs.push('NSString.drawAtPointWithAttributes unavailable');
+  } catch (e) { errs.push('drawAtPointWithAttributes: ' + e); }
+  try {
+    var line = $.CTLineCreateWithAttributedString(makeAttributedString(text, font, color));
+    var cg = ctx.CGContext;
+    var baseline = y + (metrics && typeof metrics.ctDescent === 'number' ? metrics.ctDescent : font.descender * -1);
+    $.CGContextSaveGState(cg);
+    $.CGContextSetTextMatrix(cg, $.CGAffineTransformMake(1, 0, 0, 1, 0, 0));
+    $.CGContextSetTextPosition(cg, x, baseline);
+    $.CTLineDraw(line, cg);
+    $.CGContextRestoreGState(cg);
+    return 'CoreText';
+  } catch (e) { errs.push('CoreText draw: ' + e); }
+  TEXT_ERRORS = TEXT_ERRORS.concat(errs);
+  throw new Error('cannot draw text: ' + errs.join(' | '));
+}
 
 function hexToColor(hex) {
   hex = String(hex).replace(/^#/, '');
@@ -61,20 +140,17 @@ function renderSlot(src, px, badgeText, color) {
   if (px >= 64 && badgeText.length > 0) {
     var fontSize = h * 0.62;
     var font = $.NSFont.boldSystemFontOfSize(fontSize);
-    var attrs = $.NSMutableDictionary.alloc.init;
-    attrs.setObjectForKey(font, $.NSFontAttributeName);
-    attrs.setObjectForKey($.NSColor.whiteColor, $.NSForegroundColorAttributeName);
-    var str = $.NSAttributedString.alloc.initWithStringAttributes($(badgeText), attrs);
-    var sz = str.size;
+    var white = $.NSColor.whiteColor;
+    var m = measureText(badgeText, font, white);
     // Shrink to fit if the label is wide.
-    if (sz.width > w * 0.9) {
-      fontSize = fontSize * (w * 0.9) / sz.width;
+    if (m.width > w * 0.9) {
+      fontSize = fontSize * (w * 0.9) / m.width;
       font = $.NSFont.boldSystemFontOfSize(fontSize);
-      attrs.setObjectForKey(font, $.NSFontAttributeName);
-      str = $.NSAttributedString.alloc.initWithStringAttributes($(badgeText), attrs);
-      sz = str.size;
+      m = measureText(badgeText, font, white);
     }
-    str.drawAtPoint($.NSMakePoint(margin + (w - sz.width) / 2, y + (h - sz.height) / 2));
+    var tx = margin + (w - m.width) / 2;
+    var ty = y + (h - m.height) / 2;
+    TEXT_METHOD = drawText(badgeText, font, white, tx, ty, ctx, m);
   }
 
   ctx.flushGraphics;
@@ -102,5 +178,6 @@ function run(argv) {
     var ok = png.writeToFileAtomically($(outDir + '/' + name), true);
     if (!ok) throw new Error('failed to write ' + name);
   }
-  return 'wrote ' + SLOTS.length + ' images to ' + outDir;
+  var note = TEXT_ERRORS.length ? ' (fallbacks tried: ' + TEXT_ERRORS.join(' | ') + ')' : '';
+  return 'wrote ' + SLOTS.length + ' images to ' + outDir + ' using ' + TEXT_METHOD + note;
 }
