@@ -1,0 +1,27 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax check
+        run: bash -n src/launch.sh build.sh install.sh uninstall.sh tests/test_launch.sh
+      - name: Run tests
+        run: tests/test_launch.sh
+      - name: Lint plists (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          ./build.sh
+          for p in build/*.app/Contents/Info.plist; do plutil -lint "$p"; done
+      - name: Icon script syntax (macOS)
+        if: runner.os == 'macOS'
+        run: osascript -l JavaScript -e 'ObjC.import("AppKit"); "ok"' && osascript -l JavaScript src/make-icon.js 2>&1 | grep -q usage
