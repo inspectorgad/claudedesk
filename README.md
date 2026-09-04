@@ -154,6 +154,14 @@ on macOS with Claude installed.
   the launcher you want to sign in to, and sign in again.
 - **Launcher does nothing**: check `~/Library/Logs/claudedesk.log`. Each run
   logs the profile, the resolved `Claude.app` path, and the action taken.
+- **After a Claude Desktop update**: open both launchers once and check that
+  each window shows its own organization. Updates never touch the launchers
+  or the profile folders, but when a running instance restarts to apply an
+  update, Claude may relaunch itself without the `--user-data-dir` argument,
+  so the Resurrection window can come back as a second SPST instance. If
+  that happens, quit that window and click **Claude Resurrection** again.
+  If the Claude icon changed in the update, re-run `./install.sh` to redraw
+  the badged launcher icons.
 - **Reset the Resurrection profile**: quit that instance, then delete
   `~/Library/Application Support/Claude-Resurrection`. The next launch starts
   clean.
